@@ -1,23 +1,27 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Cinemachine;
+
 
 public class PlayerMovement : MonoBehaviour
 {
-    public float speed = 5f;               // Movement speed
-    public float maxJumpForce = 15f;       // Maximum force applied when jumping
-    public float minJumpForce = 5f;        // Minimum force applied when jumping
-    public float chargeRate = 10f;         // Rate at which jump force increases
-    public float minDashSpeed = 10f;       // Minimum speed during dash
-    public float maxDashSpeed = 30f;       // Maximum speed during charged dash
-    public float dashChargeRate = 20f;     // Rate at which dash speed increases
-    public float dashTime = 0.2f;          // Duration of the dash
-    public float dashCooldown = 1f;        // Cooldown time between dashes
-    public LayerMask groundLayer;          // Layer that defines what is ground
-    public Transform groundCheck;          // Position to check if the player is grounded
+    public float speed = 5f;
+    public float maxJumpForce = 15f;
+    public float minJumpForce = 5f;
+    public float chargeRate = 10f;
+    public float minDashSpeed = 10f;
+    public float maxDashSpeed = 30f;
+    public float dashChargeRate = 20f;
+    public float dashTime = 0.2f;
+    public float dashCooldown = 1f;
+    public LayerMask groundLayer;
+    public Transform groundCheck;
+    public CinemachineImpulseSource impulseSource;
 
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
+    private Animator animator;
     private bool isGrounded;
     private bool isDashing;
     private bool isChargingJump;
@@ -31,8 +35,11 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        animator = GetComponent<Animator>();
         currentJumpForce = minJumpForce;
         currentDashSpeed = minDashSpeed;
+
+        impulseSource = GetComponent<CinemachineImpulseSource>();
     }
 
     void Update()
@@ -44,26 +51,23 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleMovement()
     {
-        if (isDashing) return; // Skip regular movement if dashing
+        if (isDashing || isChargingJump) return; // Skip movement if dashing or charging jump
 
-        // Get horizontal input
         float moveInput = Input.GetAxis("Horizontal");
-
-        // Apply horizontal movement
         rb.velocity = new Vector2(moveInput * speed, rb.velocity.y);
 
-        // Flip the sprite based on movement direction
         if (moveInput > 0)
         {
-            spriteRenderer.flipX = false; // Face right
+            spriteRenderer.flipX = false;
         }
         else if (moveInput < 0)
         {
-            spriteRenderer.flipX = true;  // Face left
+            spriteRenderer.flipX = true;
         }
 
-        // Check if the player is grounded
+        animator.SetFloat("Speed", Mathf.Abs(moveInput));
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, 0.1f, groundLayer);
+        animator.SetBool("isGrounded", isGrounded);
     }
 
     void HandleJump()
@@ -73,24 +77,33 @@ public class PlayerMovement : MonoBehaviour
             if (!isChargingJump)
             {
                 isChargingJump = true;
-                currentJumpForce = minJumpForce; // Start charging from the minimum jump force
+                currentJumpForce = minJumpForce;
+                animator.SetBool("isCharging", true); // Start charging animation
             }
 
-            // Increase the jump force while the button is held, but don't exceed the maximum jump force
             currentJumpForce += chargeRate * Time.deltaTime;
             currentJumpForce = Mathf.Clamp(currentJumpForce, minJumpForce, maxJumpForce);
         }
 
-        // Execute the jump when the button is released
         if (isChargingJump && Input.GetButtonUp("Jump"))
         {
             rb.velocity = new Vector2(rb.velocity.x, currentJumpForce);
-            isChargingJump = false; // Reset charging state
+            isChargingJump = false;
+            animator.SetBool("isCharging", false); // Stop charging animation
+            animator.SetTrigger("Jump");
+
+            // Trigger screen shake only if the jump is fully charged
+            if (currentJumpForce >= maxJumpForce && impulseSource != null)
+            {
+                impulseSource.GenerateImpulse();
+            }
         }
     }
 
     void HandleDash()
     {
+        if (isChargingJump || isDashing) return; // Skip dash handling if charging jump or already dashing
+
         if (isChargingDash)
         {
             currentDashSpeed += dashChargeRate * Time.deltaTime;
@@ -107,28 +120,27 @@ public class PlayerMovement : MonoBehaviour
             else
             {
                 isDashing = false;
-                currentDashSpeed = minDashSpeed; // Reset dash speed after dashing
+                currentDashSpeed = minDashSpeed;
+                animator.SetBool("isDashing", false);
             }
         }
 
-        // Start charging dash when Left Shift is held
         if (Input.GetKey(KeyCode.LeftShift) && Time.time >= lastDashTime + dashCooldown)
         {
             if (!isChargingDash)
             {
                 isChargingDash = true;
-                currentDashSpeed = minDashSpeed; // Start charging from the minimum dash speed
+                currentDashSpeed = minDashSpeed;
             }
         }
 
-        // Execute dash when Left Shift is released
         if (isChargingDash && Input.GetKeyUp(KeyCode.LeftShift))
         {
             isDashing = true;
             dashTimeLeft = dashTime;
             lastDashTime = Time.time;
-            isChargingDash = false; // Reset charging state
+            isChargingDash = false;
+            animator.SetBool("isDashing", true);
         }
     }
-
 }
