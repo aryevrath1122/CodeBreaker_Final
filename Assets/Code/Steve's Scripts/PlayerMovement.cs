@@ -51,7 +51,7 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleMovement()
     {
-        if (isDashing || isChargingJump) return; // Skip movement if dashing or charging jump
+        if (isDashing) return; // Skip movement if dashing or charging jump
 
         float moveInput = Input.GetAxis("Horizontal");
         rb.velocity = new Vector2(moveInput * speed, rb.velocity.y);
@@ -77,33 +77,24 @@ public class PlayerMovement : MonoBehaviour
             if (!isChargingJump)
             {
                 isChargingJump = true;
-                currentJumpForce = minJumpForce;
-                animator.SetBool("isCharging", true); // Start charging animation
+                currentJumpForce = minJumpForce; // Start charging from the minimum jump force
             }
 
+            // Increase the jump force while the button is held, but don't exceed the maximum jump force
             currentJumpForce += chargeRate * Time.deltaTime;
             currentJumpForce = Mathf.Clamp(currentJumpForce, minJumpForce, maxJumpForce);
         }
 
+        // Execute the jump when the button is released
         if (isChargingJump && Input.GetButtonUp("Jump"))
         {
             rb.velocity = new Vector2(rb.velocity.x, currentJumpForce);
-            isChargingJump = false;
-            animator.SetBool("isCharging", false); // Stop charging animation
-            animator.SetTrigger("Jump");
-
-            // Trigger screen shake only if the jump is fully charged
-            if (currentJumpForce >= maxJumpForce && impulseSource != null)
-            {
-                impulseSource.GenerateImpulse();
-            }
+            isChargingJump = false; // Reset charging state
         }
     }
 
     void HandleDash()
     {
-        if (isChargingJump || isDashing) return; // Skip dash handling if charging jump or already dashing
-
         if (isChargingDash)
         {
             currentDashSpeed += dashChargeRate * Time.deltaTime;
@@ -120,27 +111,27 @@ public class PlayerMovement : MonoBehaviour
             else
             {
                 isDashing = false;
-                currentDashSpeed = minDashSpeed;
-                animator.SetBool("isDashing", false);
+                currentDashSpeed = minDashSpeed; // Reset dash speed after dashing
             }
         }
 
+        // Start charging dash when Left Shift is held
         if (Input.GetKey(KeyCode.LeftShift) && Time.time >= lastDashTime + dashCooldown)
         {
             if (!isChargingDash)
             {
                 isChargingDash = true;
-                currentDashSpeed = minDashSpeed;
+                currentDashSpeed = minDashSpeed; // Start charging from the minimum dash speed
             }
         }
 
+        // Execute dash when Left Shift is released
         if (isChargingDash && Input.GetKeyUp(KeyCode.LeftShift))
         {
             isDashing = true;
             dashTimeLeft = dashTime;
             lastDashTime = Time.time;
-            isChargingDash = false;
-            animator.SetBool("isDashing", true);
+            isChargingDash = false; // Reset charging state
         }
     }
 }
